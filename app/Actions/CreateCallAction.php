@@ -20,6 +20,11 @@ class CreateCallAction implements CreatesCalls
         private readonly CallRepositoryInterface $calls,
     ) {}
 
+    /**
+     * Create the call in a transaction and apply lead ownership/status transitions.
+     *
+     * @param  array{duration: int, result: string, manager_id: int}  $data
+     */
     public function handle(Lead $lead, array $data): Call
     {
         return DB::transaction(function () use ($lead, $data): Call {
@@ -57,11 +62,13 @@ class CreateCallAction implements CreatesCalls
         }
     }
 
+    /**
+     * The "lost" rule applies only when the full threshold window failed with no answer.
+     */
     private function leadReachedNoAnswerLossThreshold(Lead $lead): bool
     {
         $latestResults = $this->calls->latestResultsForLead($lead, self::CONSECUTIVE_NO_ANSWER_CALLS_TO_LOSE_LEAD);
 
-        // The "lost" rule applies only when the full threshold window failed with no answer.
         return $latestResults->count() === self::CONSECUTIVE_NO_ANSWER_CALLS_TO_LOSE_LEAD
             && $latestResults->every(
                 fn (mixed $result): bool => $result instanceof CallResult
