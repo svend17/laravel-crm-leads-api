@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Contracts\Actions\CreatesCalls;
 use App\Contracts\Repositories\CallRepositoryInterface;
 use App\Contracts\Repositories\LeadRepositoryInterface;
 use App\Enums\CallResult;
@@ -10,16 +11,15 @@ use App\Models\Call;
 use App\Models\Lead;
 use Illuminate\Support\Facades\DB;
 
-class CreateCallAction
+class CreateCallAction implements CreatesCalls
 {
+    private const int CONSECUTIVE_NO_ANSWER_CALLS_TO_LOSE_LEAD = 3;
+
     public function __construct(
         private readonly LeadRepositoryInterface $leads,
         private readonly CallRepositoryInterface $calls,
     ) {}
 
-    /**
-     * @param  array{duration: int, result: string, manager_id: int}  $data
-     */
     public function handle(Lead $lead, array $data): Call
     {
         return DB::transaction(function () use ($lead, $data): Call {
@@ -48,7 +48,7 @@ class CreateCallAction
 
         if ($call->result === CallResult::Success) {
             $lead->status = LeadStatus::Won;
-        } elseif ($this->lastThreeCallsWereNoAnswer($lead)) {
+        } elseif ($this->leadReachedNoAnswerLossThreshold($lead)) {
             $lead->status = LeadStatus::Lost;
         }
 
@@ -57,12 +57,12 @@ class CreateCallAction
         }
     }
 
-    private function lastThreeCallsWereNoAnswer(Lead $lead): bool
+    private function leadReachedNoAnswerLossThreshold(Lead $lead): bool
     {
-        $latestResults = $this->calls->latestResultsForLead($lead, 3);
+        $latestResults = $this->calls->latestResultsForLead($lead, self::CONSECUTIVE_NO_ANSWER_CALLS_TO_LOSE_LEAD);
 
-        // The "lost" rule applies only when the last three calls exist and all failed with no answer.
-        return $latestResults->count() === 3
+        // The "lost" rule applies only when the full threshold window failed with no answer.
+        return $latestResults->count() === self::CONSECUTIVE_NO_ANSWER_CALLS_TO_LOSE_LEAD
             && $latestResults->every(
                 fn (mixed $result): bool => $result instanceof CallResult
                     ? $result === CallResult::NoAnswer

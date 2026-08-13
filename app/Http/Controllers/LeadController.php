@@ -10,11 +10,15 @@ use Symfony\Component\HttpFoundation\Response;
 
 class LeadController extends Controller
 {
-    public function store(StoreLeadRequest $request, LeadRepositoryInterface $leads): JsonResponse
-    {
-        $lead = $leads->create($request->validated());
+    public function __construct(
+        private LeadRepositoryInterface $leads,
+    ) {}
 
-        return (new LeadResource($lead))
+    public function store(StoreLeadRequest $request): JsonResponse
+    {
+        $lead = $this->leads->create($request->validated());
+
+        return new LeadResource($lead)
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
     }

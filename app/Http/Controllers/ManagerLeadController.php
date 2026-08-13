@@ -10,13 +10,16 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ManagerLeadController extends Controller
 {
+    public function __construct(
+        private LeadRepositoryInterface $leads,
+    ) {}
+
     public function index(
         IndexManagerLeadsRequest $request,
         Manager $manager,
-        LeadRepositoryInterface $leads,
     ): AnonymousResourceCollection {
         return ManagerLeadResource::collection(
-            $leads->paginateForManager($manager, $request->perPage())
+            $this->leads->paginateForManager($manager, $request->perPage())
         );
     }
 }
